@@ -180,6 +180,37 @@ static spi_diag_result_t run_direct_cs_read(const char *label,
     return result;
 }
 
+static spi_diag_result_t run_bidirectional_read(const char *label,
+                                                eff_spi_t *spi,
+                                                uint8_t addr)
+{
+    spi_diag_result_t result = {
+        .rc = -127,
+        .rx = {0}
+    };
+    uint8_t tx[2] = {addr, 0x00u};
+
+    printf("%s\r\n", label);
+    uart_settle();
+    print_bytes("  tx=", tx, 2u);
+
+    result.rc = spi_set_mode(spi, SPI_XFER_BIDIRECTIONAL, 16u);
+    printf("  eff_spi_init -> %d\r\n", result.rc);
+    uart_settle();
+    if (result.rc != 0) {
+        return result;
+    }
+
+    dump_spi_regs("  before xfer", spi);
+    result.rc = eff_spi_xfer(spi, 0u, 0u, tx, 2u, result.rx, 2u);
+    printf("  eff_spi_xfer -> %d\r\n", result.rc);
+    uart_settle();
+    dump_spi_regs("  after xfer", spi);
+    print_bytes("  rx=", result.rx, 2u);
+
+    return result;
+}
+
 static void print_separator(const char *label)
 {
     printf("\r\n--- %s ---\r\n", label);
@@ -194,6 +225,10 @@ int main(void)
     spi_diag_result_t safe_write_test;
     spi_diag_result_t safe_read_test;
     spi_diag_result_t safe_read_rev;
+    spi_diag_result_t dummy_read_test;
+    spi_diag_result_t dummy_read_rev;
+    spi_diag_result_t bidi_read_test;
+    spi_diag_result_t bidi_read_rev;
     uint8_t tx_reset_assert[2] = {(uint8_t)(ARDUCHIP_RESET | 0x80u), 0x80u};
     uint8_t tx_reset_release[2] = {(uint8_t)(ARDUCHIP_RESET | 0x80u), 0x00u};
     uint8_t tx_test_write[2] = {(uint8_t)(ARDUCHIP_TEST1 | 0x80u), 0x55u};
@@ -249,9 +284,22 @@ int main(void)
     safe_read_rev = run_xfer("read revision reg after safe write", CAM_SPI,
                              SPI_XFER_WRITE_READ, tx_rev_read, 1u, 1u);
 
-    printf("summary: baseline test=0x%02X rev=0x%02X | safe-write rc=%d safe test=0x%02X safe rev=0x%02X\r\n",
-           read_test.rx[0], read_rev.rx[0], safe_write_test.rc,
-           safe_read_test.rx[0], safe_read_rev.rx[0]);
+    print_separator("alternate controller read modes");
+    dummy_read_test = run_xfer("read test reg (WRITE_DUMMY_READ)", CAM_SPI,
+                               SPI_XFER_WRITE_DUMMY_READ, tx_test_read, 1u, 1u);
+    dummy_read_rev = run_xfer("read revision reg (WRITE_DUMMY_READ)", CAM_SPI,
+                              SPI_XFER_WRITE_DUMMY_READ, tx_rev_read, 1u, 1u);
+    bidi_read_test = run_bidirectional_read("read test reg (BIDIRECTIONAL)", CAM_SPI,
+                                            ARDUCHIP_TEST1);
+    bidi_read_rev = run_bidirectional_read("read revision reg (BIDIRECTIONAL)", CAM_SPI,
+                                           ARDUCHIP_REV);
+
+    printf("summary: base t=0x%02X r=0x%02X | safe t=0x%02X r=0x%02X | dummy t=0x%02X r=0x%02X | bidi t={0x%02X,0x%02X} r={0x%02X,0x%02X}\r\n",
+           read_test.rx[0], read_rev.rx[0],
+           safe_read_test.rx[0], safe_read_rev.rx[0],
+           dummy_read_test.rx[0], dummy_read_rev.rx[0],
+           bidi_read_test.rx[0], bidi_read_test.rx[1],
+           bidi_read_rev.rx[0], bidi_read_rev.rx[1]);
     uart_settle();
 
     while (1) {
