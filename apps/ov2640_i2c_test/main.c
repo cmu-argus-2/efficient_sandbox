@@ -30,6 +30,7 @@ int main(void)
     ov2640_id_t ov_id;
     int8_t rc;
 
+    sleep_ms(1000);
     printf("\r\n=== APP: ov2640_i2c_test ===\r\n");
     printf("OV2640 I2C test on I2C_4_1 / PINMUX_4\r\n");
 

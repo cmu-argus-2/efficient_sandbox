@@ -49,6 +49,7 @@ int main(void)
     ov2640_id_t ov_id;
     uint8_t arduchip_ver = 0u;
 
+    sleep_ms(1000);
     printf("\r\n=== APP: arducam ===\r\n");
     printf("ArduCAM bring-up on SPI_2 / PINMUX_2 and I2C_4_1 / PINMUX_4\r\n");
 

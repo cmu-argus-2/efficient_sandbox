@@ -22,9 +22,11 @@ int main(void)
     eff_spi_cfg_t spi_cfg = EFF_SPI_DEFAULTS;
     arducam_spi_bus_t bus;
     arducam_spi_t cam_spi;
+    uint8_t test_reg = 0u;
     uint8_t version = 0u;
     int8_t rc;
 
+    sleep_ms(1000);
     printf("\r\n=== APP: arducam_spi_test ===\r\n");
     printf("ArduCAM SPI test on SPI_2 / PINMUX_2\r\n");
 
@@ -32,7 +34,7 @@ int main(void)
 
     spi_cfg.xfer_mode = SPI_XFER_WRITE_READ;
     spi_cfg.bus_size = SPI_BUS_SINGLE;
-    spi_cfg.clk_div = 4;
+    spi_cfg.clk_div = 16;
 
     rc = eff_spi_init(CAM_SPI, &spi_cfg);
     printf("eff_spi_init -> %d\r\n", rc);
@@ -49,10 +51,16 @@ int main(void)
         return -1;
     }
 
+    rc = arducam_spi_write_reg(&cam_spi, 0x00u, 0x55u);
+    printf("arducam_spi_write_reg(0x00, 0x55) -> %d\r\n", rc);
+
+    rc = arducam_spi_read_reg(&cam_spi, 0x00u, &test_reg);
+    printf("arducam_spi_read_reg(0x00) -> %d, val=0x%02X\r\n", rc, test_reg);
+
     rc = arducam_spi_check_link(&cam_spi);
     printf("arducam_spi_check_link -> %d\r\n", rc);
     if (rc != ARDUCAM_SPI_OK) {
-        return -1;
+        printf("SPI link check failed after raw test-reg probe\r\n");
     }
 
     rc = arducam_spi_read_reg(&cam_spi, 0x40u, &version);
