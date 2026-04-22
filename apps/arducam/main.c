@@ -14,7 +14,7 @@
 #define CAM_I2C        I2C_4_1
 #define CAM_I2C_SPEED  I2C_SPEED_100K
 
-#define OV2640_I2C_ADDR 0x30u
+#define OV2640_I2C_ADDR 0x3Cu
 
 static int8_t e1x_spi_transact(void *ctx,
                                const uint8_t *tx,
