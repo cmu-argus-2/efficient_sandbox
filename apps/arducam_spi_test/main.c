@@ -28,7 +28,7 @@ int main(void)
 
     sleep_ms(1000);
     printf("\r\n=== APP: arducam_spi_test ===\r\n");
-    printf("ArduCAM SPI test on SPI_2 / PINMUX_2\r\n");
+    printf("ArduCAM 5MP Plus SPI test on SPI_2 / PINMUX_2\r\n");
 
     eff_pinmux_set(CAM_SPI_PINMUX, PINMUX_SPI);
 
