@@ -20,36 +20,17 @@ static int8_t e1x_spi_transact(void *ctx,
 {
     eff_spi_t *spi = (eff_spi_t *)ctx;
     eff_spi_cfg_t cfg = spi->_cfg;
-    uint8_t dummy_tx = 0u;
-    uint8_t dummy_rx = 0u;
-    uint8_t *tx_buf = (uint8_t *)tx;
-    uint8_t *rx_buf = rx;
-    uint32_t safe_tx_len = tx_len;
-    uint32_t safe_rx_len = rx_len;
 
     if (rx_len == 0u) {
         cfg.xfer_mode = SPI_XFER_WRITE_ONLY;
-        rx_buf = &dummy_rx;
-        safe_rx_len = 1u;
     } else if (tx_len == 0u) {
         cfg.xfer_mode = SPI_XFER_READ_ONLY;
-        tx_buf = &dummy_tx;
-        safe_tx_len = 1u;
     } else {
         cfg.xfer_mode = SPI_XFER_WRITE_READ;
     }
 
-    if (safe_tx_len == 0u) {
-        tx_buf = &dummy_tx;
-        safe_tx_len = 1u;
-    }
-    if (safe_rx_len == 0u) {
-        rx_buf = &dummy_rx;
-        safe_rx_len = 1u;
-    }
-
     eff_spi_init(spi, &cfg);
-    return eff_spi_xfer(spi, 0u, 0u, tx_buf, safe_tx_len, rx_buf, safe_rx_len);
+    return eff_spi_xfer(spi, 0u, 0u, (uint8_t *)tx, tx_len, rx, rx_len);
 }
 
 int main(void)
