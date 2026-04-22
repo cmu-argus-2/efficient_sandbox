@@ -95,14 +95,6 @@
   --------------------------------------*/
 #include "memorysaver.h"
 #if defined ( RASPBERRY_PI )
-	#include <string.h>
-	#include <time.h>
-	#include <stdio.h>
-	#include <stdlib.h>
-	#include <stdint.h>
-	#include <unistd.h>
-	#include <wiringPiI2C.h>
-	#include <wiringPi.h>
 	#include "ArduCAM.h"
 	#include "arducam_arch_raspberrypi.h"
 #else
