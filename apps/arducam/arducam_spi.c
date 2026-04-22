@@ -51,16 +51,31 @@ int8_t arducam_spi_write_reg(const arducam_spi_t *cam, uint8_t addr, uint8_t dat
 
 int8_t arducam_spi_read_reg(const arducam_spi_t *cam, uint8_t addr, uint8_t *data)
 {
-    uint8_t tx;
+    uint8_t tx[2];
+    uint8_t rx[2] = {0u, 0u};
 
     if ((arducam_spi_bus_ok(cam) != ARDUCAM_SPI_OK) || (data == NULL)) {
         return ARDUCAM_SPI_ERR_ARG;
     }
 
-    tx = (uint8_t)(addr & 0x7Fu);
+    /*
+     * Datasheet single-read timing:
+     *   byte 0: command/address
+     *   byte 1: dummy byte on MOSI
+     *   byte 1 on MISO: register value
+     *
+     * Keep this as one continuous 2-byte exchange so the device sees the
+     * command phase and data phase under a single CS assertion.
+     */
+    tx[0] = (uint8_t)(addr & 0x7Fu);
+    tx[1] = 0x00u;
 
-    return (cam->bus.transact(cam->bus.ctx, &tx, 1u, data, 1u) == 0) ?
-        ARDUCAM_SPI_OK : ARDUCAM_SPI_ERR_IO;
+    if (cam->bus.transact(cam->bus.ctx, tx, 2u, rx, 2u) != 0) {
+        return ARDUCAM_SPI_ERR_IO;
+    }
+
+    *data = rx[1];
+    return ARDUCAM_SPI_OK;
 }
 
 int8_t arducam_spi_check_link(const arducam_spi_t *cam)
