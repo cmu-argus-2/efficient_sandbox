@@ -78,6 +78,18 @@ int main(void)
         return -1;
     }
 
+    if (arducam_spi_write_reset(&cam_spi, 0x80u) != ARDUCAM_SPI_OK) {
+        printf("ArduChip reset assert failed\r\n");
+        return -1;
+    }
+    sleep_ms(100);
+
+    if (arducam_spi_write_reset(&cam_spi, 0x00u) != ARDUCAM_SPI_OK) {
+        printf("ArduChip reset release failed\r\n");
+        return -1;
+    }
+    sleep_ms(100);
+
     if (arducam_spi_check_link(&cam_spi) != ARDUCAM_SPI_OK) {
         printf("ArduChip SPI link check failed\r\n");
         return -1;
@@ -115,6 +127,23 @@ int main(void)
     }
 
     printf("OV5642 ID check passed\r\n");
+
+    if (arducam_spi_set_bit(&cam_spi, ARDUCHIP_TIM, VSYNC_LEVEL_MASK) != ARDUCAM_SPI_OK) {
+        printf("ArduChip VSYNC config failed\r\n");
+        return -1;
+    }
+
+    if (arducam_spi_clear_fifo_flag(&cam_spi) != ARDUCAM_SPI_OK) {
+        printf("ArduChip clear FIFO flag failed\r\n");
+        return -1;
+    }
+
+    if (arducam_spi_write_reg(&cam_spi, ARDUCHIP_FRAMES, 0x00u) != ARDUCAM_SPI_OK) {
+        printf("ArduChip frame-count config failed\r\n");
+        return -1;
+    }
+
+    printf("ArduChip timing/frame setup applied\r\n");
 
     while (1) {
         sleep(1);
