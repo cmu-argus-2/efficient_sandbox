@@ -180,11 +180,20 @@ static spi_diag_result_t run_direct_cs_read(const char *label,
     return result;
 }
 
+static void print_separator(const char *label)
+{
+    printf("\r\n--- %s ---\r\n", label);
+    uart_settle();
+}
+
 int main(void)
 {
     eff_spi_cfg_t spi_cfg = EFF_SPI_DEFAULTS;
     spi_diag_result_t read_test;
     spi_diag_result_t read_rev;
+    spi_diag_result_t safe_write_test;
+    spi_diag_result_t safe_read_test;
+    spi_diag_result_t safe_read_rev;
     uint8_t tx_reset_assert[2] = {(uint8_t)(ARDUCHIP_RESET | 0x80u), 0x80u};
     uint8_t tx_reset_release[2] = {(uint8_t)(ARDUCHIP_RESET | 0x80u), 0x00u};
     uint8_t tx_test_write[2] = {(uint8_t)(ARDUCHIP_TEST1 | 0x80u), 0x55u};
@@ -207,6 +216,7 @@ int main(void)
     uart_settle();
     dump_spi_regs("after initial init", CAM_SPI);
 
+    print_separator("baseline zero-length writes");
     (void)run_xfer("reset assert", CAM_SPI, SPI_XFER_WRITE_ONLY,
                    tx_reset_assert, 2u, 0u);
     sleep_ms(100);
@@ -230,6 +240,19 @@ int main(void)
         (void)run_direct_cs_read("read revision reg (direct-CS experiment)",
                                  CAM_SPI, tx_rev_read, 1u, 1u);
     }
+
+    print_separator("non-zero-length write workaround");
+    safe_write_test = run_xfer("write test reg (WRITE_READ, dummy-rx)", CAM_SPI,
+                               SPI_XFER_WRITE_READ, tx_test_write, 2u, 1u);
+    safe_read_test = run_xfer("read test reg after safe write", CAM_SPI,
+                              SPI_XFER_WRITE_READ, tx_test_read, 1u, 1u);
+    safe_read_rev = run_xfer("read revision reg after safe write", CAM_SPI,
+                             SPI_XFER_WRITE_READ, tx_rev_read, 1u, 1u);
+
+    printf("summary: baseline test=0x%02X rev=0x%02X | safe-write rc=%d safe test=0x%02X safe rev=0x%02X\r\n",
+           read_test.rx[0], read_rev.rx[0], safe_write_test.rc,
+           safe_read_test.rx[0], safe_read_rev.rx[0]);
+    uart_settle();
 
     while (1) {
         sleep(1);
