@@ -1,5 +1,5 @@
-set(ARDUCAM_ROOT "/Users/andrewkim/Downloads/Arduino-master/ArduCAM")
-set(ARDUCAM_RPI "${ARDUCAM_ROOT}/examples/RaspberryPi")
+set(ARDUCAM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/vendor")
+set(ARDUCAM_RPI "${ARDUCAM_ROOT}")
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
