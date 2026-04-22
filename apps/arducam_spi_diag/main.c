@@ -52,6 +52,16 @@ static void print_bytes(const char *label, const uint8_t *data, uint32_t len)
     uart_settle();
 }
 
+static void print_reg_compact(const char *label, eff_spi_t *spi)
+{
+    ATCSPI200_RegDef *regs = spi_regs(spi);
+
+    printf("%s TF=0x%08X DI=0x%08X TC=0x%08X ST=0x%08X TM=0x%08X\r\n",
+           label, regs->TRANSFMT, regs->DIRECTIO, regs->TRANSCTRL,
+           regs->STATUS, regs->TIMING);
+    uart_settle();
+}
+
 static int8_t spi_set_mode(eff_spi_t *spi, eff_spi_xfer_mode_e mode, uint8_t clk_div)
 {
     eff_spi_cfg_t cfg = spi->_cfg;
@@ -112,70 +122,6 @@ static spi_diag_result_t run_xfer(const char *label,
     if (rx_len != 0u) {
         print_bytes("  rx=", result.rx, rx_len);
     }
-
-    return result;
-}
-
-static spi_diag_result_t run_direct_cs_read(const char *label,
-                                            eff_spi_t *spi,
-                                            const uint8_t *tx,
-                                            uint32_t tx_len,
-                                            uint32_t rx_len)
-{
-    spi_diag_result_t result = {
-        .rc = -127,
-        .rx = {0}
-    };
-    ATCSPI200_RegDef *regs = spi_regs(spi);
-    uint32_t saved_directio;
-    uint8_t tx_buf[8] = {0};
-    uint32_t i;
-
-    if (tx_len > sizeof(tx_buf)) {
-        printf("%s\r\n", label);
-        uart_settle();
-        printf("  tx_len too large for local buffer\r\n");
-        uart_settle();
-        result.rc = -126;
-        return result;
-    }
-
-    for (i = 0; i < tx_len; ++i) {
-        tx_buf[i] = tx[i];
-    }
-
-    printf("%s\r\n", label);
-    uart_settle();
-    print_bytes("  tx=", tx_buf, tx_len);
-
-    result.rc = spi_set_mode(spi, SPI_XFER_WRITE_READ, 16u);
-    printf("  eff_spi_init -> %d\r\n", result.rc);
-    uart_settle();
-    if (result.rc != 0) {
-        return result;
-    }
-
-    saved_directio = regs->DIRECTIO;
-    dump_spi_regs("  before direct-cs assert", spi);
-    regs->DIRECTIO = saved_directio |
-                     ATCSPI200_DIRECTIO_DIRECTIOEN_MASK |
-                     ATCSPI200_DIRECTIO_CS_OE_MASK |
-                     ATCSPI200_DIRECTIO_CS_O_MASK;
-    regs->DIRECTIO &= ~ATCSPI200_DIRECTIO_CS_O_MASK;
-    dump_spi_regs("  after direct-cs assert", spi);
-
-    result.rc = eff_spi_xfer(spi, 0u, 0u, tx_buf, tx_len,
-                             (rx_len == 0u) ? NULL : result.rx, rx_len);
-    printf("  eff_spi_xfer -> %d\r\n", result.rc);
-    uart_settle();
-    if (rx_len != 0u) {
-        print_bytes("  rx=", result.rx, rx_len);
-    }
-
-    regs->DIRECTIO |= ATCSPI200_DIRECTIO_CS_O_MASK;
-    dump_spi_regs("  after direct-cs deassert", spi);
-    regs->DIRECTIO = saved_directio;
-    dump_spi_regs("  restored directio", spi);
 
     return result;
 }
@@ -245,10 +191,7 @@ static spi_diag_result_t run_manual_trace_read(const char *label,
     regs->TRANSCTRL |= (ATCSPI200_TRANSCTRL_RDTRANCNT_MASK &
                         ((1u - 1u) << ATCSPI200_TRANSCTRL_RDTRANCNT_OFFSET));
     regs->ADDR = 0u;
-    dump_spi_regs("  before manual CMD write", spi);
     regs->CMD = 0u;
-    printf("  status after CMD=0 write: 0x%08X\r\n", regs->STATUS);
-    uart_settle();
 
     while ((tx_sent < 1u || rx_received < 1u) && (loops < 1000000u)) {
         ++loops;
@@ -256,9 +199,6 @@ static spi_diag_result_t run_manual_trace_read(const char *label,
         while ((tx_sent < 1u) &&
                !(regs->STATUS & ATCSPI200_STATUS_TXFULL_MASK)) {
             regs->DATA = tx_buf[tx_sent];
-            printf("  wrote DATA[%u]=0x%02X status=0x%08X\r\n",
-                   (unsigned)tx_sent, tx_buf[tx_sent], regs->STATUS);
-            uart_settle();
             ++tx_sent;
         }
 
@@ -270,14 +210,8 @@ static spi_diag_result_t run_manual_trace_read(const char *label,
             if (rx_fifo == 0u) {
                 rx_fifo = 1u;
             }
-            printf("  rx available: fifo=%u status=0x%08X\r\n",
-                   (unsigned)rx_fifo, regs->STATUS);
-            uart_settle();
             while ((rx_fifo != 0u) && (rx_received < 1u)) {
                 result.rx[rx_received] = (uint8_t)regs->DATA;
-                printf("  read DATA[%u]=0x%02X status=0x%08X\r\n",
-                       (unsigned)rx_received, result.rx[rx_received], regs->STATUS);
-                uart_settle();
                 ++rx_received;
                 --rx_fifo;
             }
@@ -290,11 +224,12 @@ static spi_diag_result_t run_manual_trace_read(const char *label,
         result.rc = -125;
     }
 
-    printf("  manual trace loops=%u tx_sent=%u rx_received=%u rc=%d final_status=0x%08X\r\n",
+    printf("%s rc=%d loops=%u tx=%u rx=%u val=0x%02X st=0x%08X\r\n",
+           label,
+           result.rc,
            (unsigned)loops, (unsigned)tx_sent, (unsigned)rx_received,
-           result.rc, regs->STATUS);
+           result.rx[0], regs->STATUS);
     uart_settle();
-    print_bytes("  rx=", result.rx, rx_received);
 
     return result;
 }
@@ -305,12 +240,75 @@ static void print_separator(const char *label)
     uart_settle();
 }
 
+static void probe_register_writability(eff_spi_t *spi)
+{
+    ATCSPI200_RegDef *regs = spi_regs(spi);
+    uint32_t saved_directio = regs->DIRECTIO;
+    uint32_t saved_transfmt = regs->TRANSFMT;
+    uint32_t directio_test = saved_directio |
+                             ATCSPI200_DIRECTIO_DIRECTIOEN_MASK |
+                             ATCSPI200_DIRECTIO_CS_OE_MASK |
+                             ATCSPI200_DIRECTIO_CS_O_MASK;
+    uint32_t tf_test = saved_transfmt ^ (ATCSPI200_TRANSFMT_CPOL_MASK |
+                                         ATCSPI200_TRANSFMT_CPHA_MASK);
+
+    regs->DIRECTIO = directio_test;
+    printf("DIRECTIO probe before=0x%08X wrote=0x%08X read=0x%08X\r\n",
+           saved_directio, directio_test, regs->DIRECTIO);
+    uart_settle();
+    regs->DIRECTIO = saved_directio;
+
+    regs->TRANSFMT = tf_test;
+    printf("TRANSFMT probe before=0x%08X wrote=0x%08X read=0x%08X\r\n",
+           saved_transfmt, tf_test, regs->TRANSFMT);
+    uart_settle();
+    regs->TRANSFMT = saved_transfmt;
+}
+
+static spi_diag_result_t run_mode_variant(const char *label,
+                                          eff_spi_t *spi,
+                                          eff_spi_xfer_mode_e mode,
+                                          uint8_t addr,
+                                          uint8_t cpol,
+                                          uint8_t cpha)
+{
+    spi_diag_result_t result = {
+        .rc = -127,
+        .rx = {0}
+    };
+    eff_spi_cfg_t cfg = spi->_cfg;
+    ATCSPI200_RegDef *regs = spi_regs(spi);
+    uint8_t tx = addr;
+
+    cfg.xfer_mode = mode;
+    cfg.bus_size = SPI_BUS_SINGLE;
+    cfg.clk_div = 16;
+    result.rc = eff_spi_init(spi, &cfg);
+    if (result.rc != 0) {
+        printf("%s init=%d\r\n", label, result.rc);
+        uart_settle();
+        return result;
+    }
+
+    regs->TRANSFMT = (regs->TRANSFMT & ~(ATCSPI200_TRANSFMT_CPOL_MASK |
+                                         ATCSPI200_TRANSFMT_CPHA_MASK)) |
+                     (cpol ? ATCSPI200_TRANSFMT_CPOL_MASK : 0u) |
+                     (cpha ? ATCSPI200_TRANSFMT_CPHA_MASK : 0u);
+
+    result.rc = eff_spi_xfer(spi, 0u, 0u, &tx, 1u, result.rx, 1u);
+    printf("%s mode=%u cpol=%u cpha=%u rc=%d tf=0x%08X tc=0x%08X rx=0x%02X\r\n",
+           label, (unsigned)mode, (unsigned)cpol, (unsigned)cpha,
+           result.rc, regs->TRANSFMT, regs->TRANSCTRL, result.rx[0]);
+    uart_settle();
+
+    return result;
+}
+
 int main(void)
 {
     eff_spi_cfg_t spi_cfg = EFF_SPI_DEFAULTS;
     spi_diag_result_t read_test;
     spi_diag_result_t read_rev;
-    spi_diag_result_t safe_write_test;
     spi_diag_result_t safe_read_test;
     spi_diag_result_t safe_read_rev;
     spi_diag_result_t dummy_read_test;
@@ -319,6 +317,10 @@ int main(void)
     spi_diag_result_t bidi_read_rev;
     spi_diag_result_t manual_read_test;
     spi_diag_result_t manual_read_rev;
+    spi_diag_result_t wr_c00;
+    spi_diag_result_t wr_c01;
+    spi_diag_result_t wr_c10;
+    spi_diag_result_t wr_c11;
     uint8_t tx_reset_assert[2] = {(uint8_t)(ARDUCHIP_RESET | 0x80u), 0x80u};
     uint8_t tx_reset_release[2] = {(uint8_t)(ARDUCHIP_RESET | 0x80u), 0x00u};
     uint8_t tx_test_write[2] = {(uint8_t)(ARDUCHIP_TEST1 | 0x80u), 0x55u};
@@ -339,7 +341,8 @@ int main(void)
 
     printf("initial eff_spi_init -> %d\r\n", eff_spi_init(CAM_SPI, &spi_cfg));
     uart_settle();
-    dump_spi_regs("after initial init", CAM_SPI);
+    print_reg_compact("init", CAM_SPI);
+    probe_register_writability(CAM_SPI);
 
     print_separator("baseline zero-length writes");
     (void)run_xfer("reset assert", CAM_SPI, SPI_XFER_WRITE_ONLY,
@@ -367,8 +370,8 @@ int main(void)
     }
 
     print_separator("non-zero-length write workaround");
-    safe_write_test = run_xfer("write test reg (WRITE_READ, dummy-rx)", CAM_SPI,
-                               SPI_XFER_WRITE_READ, tx_test_write, 2u, 1u);
+    (void)run_xfer("write test reg (WRITE_READ, dummy-rx)", CAM_SPI,
+                   SPI_XFER_WRITE_READ, tx_test_write, 2u, 1u);
     safe_read_test = run_xfer("read test reg after safe write", CAM_SPI,
                               SPI_XFER_WRITE_READ, tx_test_read, 1u, 1u);
     safe_read_rev = run_xfer("read revision reg after safe write", CAM_SPI,
@@ -383,17 +386,31 @@ int main(void)
                                             ARDUCHIP_TEST1);
     bidi_read_rev = run_bidirectional_read("read revision reg (BIDIRECTIONAL)", CAM_SPI,
                                            ARDUCHIP_REV);
+
+    print_separator("cpol/cpha variants");
+    wr_c00 = run_mode_variant("variant test", CAM_SPI, SPI_XFER_WRITE_READ, ARDUCHIP_TEST1, 0u, 0u);
+    wr_c01 = run_mode_variant("variant test", CAM_SPI, SPI_XFER_WRITE_READ, ARDUCHIP_TEST1, 0u, 1u);
+    wr_c10 = run_mode_variant("variant test", CAM_SPI, SPI_XFER_WRITE_READ, ARDUCHIP_TEST1, 1u, 0u);
+    wr_c11 = run_mode_variant("variant test", CAM_SPI, SPI_XFER_WRITE_READ, ARDUCHIP_TEST1, 1u, 1u);
+
+    print_separator("manual trace");
     manual_read_test = run_manual_trace_read("read test reg (manual trace)", CAM_SPI,
                                              ARDUCHIP_TEST1);
     manual_read_rev = run_manual_trace_read("read revision reg (manual trace)", CAM_SPI,
                                             ARDUCHIP_REV);
 
-    printf("summary: base t=0x%02X r=0x%02X | safe t=0x%02X r=0x%02X | dummy t=0x%02X r=0x%02X | bidi t={0x%02X,0x%02X} r={0x%02X,0x%02X} | manual t=0x%02X r=0x%02X\r\n",
+    print_separator("summary");
+    printf("base t=0x%02X r=0x%02X | safe t=0x%02X r=0x%02X\r\n",
            read_test.rx[0], read_rev.rx[0],
-           safe_read_test.rx[0], safe_read_rev.rx[0],
+           safe_read_test.rx[0], safe_read_rev.rx[0]);
+    uart_settle();
+    printf("dummy t=0x%02X r=0x%02X | bidi t={0x%02X,0x%02X} r={0x%02X,0x%02X}\r\n",
            dummy_read_test.rx[0], dummy_read_rev.rx[0],
            bidi_read_test.rx[0], bidi_read_test.rx[1],
-           bidi_read_rev.rx[0], bidi_read_rev.rx[1],
+           bidi_read_rev.rx[0], bidi_read_rev.rx[1]);
+    uart_settle();
+    printf("cp variant rx={%02X,%02X,%02X,%02X} | manual t=0x%02X r=0x%02X\r\n",
+           wr_c00.rx[0], wr_c01.rx[0], wr_c10.rx[0], wr_c11.rx[0],
            manual_read_test.rx[0], manual_read_rev.rx[0]);
     uart_settle();
 
