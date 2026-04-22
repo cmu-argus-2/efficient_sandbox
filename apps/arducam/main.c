@@ -39,6 +39,12 @@ static int8_t e1x_ov5642_write_reg(void *ctx, uint16_t reg, uint8_t val)
     return eff_i2c_write_wide(i2c, CAM_SENSOR_I2C_ADDR, reg, &data, 1u);
 }
 
+static void e1x_ov5642_delay_ms(void *ctx, uint32_t ms)
+{
+    (void)ctx;
+    sleep_ms(ms);
+}
+
 int main(void)
 {
     eff_spi_cfg_t spi_cfg = EFF_SPI_DEFAULTS;
@@ -106,6 +112,7 @@ int main(void)
 
     ov_bus.read_reg = e1x_ov5642_read_reg;
     ov_bus.write_reg = e1x_ov5642_write_reg;
+    ov_bus.delay_ms = e1x_ov5642_delay_ms;
     ov_bus.ctx = CAM_I2C;
 
     if (ov5642_init(&ov5642, &ov_bus) != OV5642_OK) {
@@ -127,6 +134,13 @@ int main(void)
     }
 
     printf("OV5642 ID check passed\r\n");
+
+    if (ov5642_init_jpeg(&ov5642, OV5642_SIZE_320X240) != OV5642_OK) {
+        printf("OV5642 JPEG init failed\r\n");
+        return -1;
+    }
+
+    printf("OV5642 JPEG init applied\r\n");
 
     if (arducam_spi_set_bit(&cam_spi, ARDUCHIP_TIM, VSYNC_LEVEL_MASK) != ARDUCAM_SPI_OK) {
         printf("ArduChip VSYNC config failed\r\n");

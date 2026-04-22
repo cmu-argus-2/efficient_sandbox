@@ -9,10 +9,12 @@ extern "C" {
 
 typedef int8_t (*ov5642_read_reg_fn)(void *ctx, uint16_t reg, uint8_t *val);
 typedef int8_t (*ov5642_write_reg_fn)(void *ctx, uint16_t reg, uint8_t val);
+typedef void (*ov5642_delay_ms_fn)(void *ctx, uint32_t ms);
 
 typedef struct {
     ov5642_read_reg_fn read_reg;
     ov5642_write_reg_fn write_reg;
+    ov5642_delay_ms_fn delay_ms;
     void *ctx;
 } ov5642_bus_t;
 
@@ -32,11 +34,23 @@ typedef enum {
     OV5642_ERR_ID = -3
 } ov5642_err_t;
 
+typedef enum {
+    OV5642_SIZE_320X240 = 0,
+    OV5642_SIZE_640X480,
+    OV5642_SIZE_1024X768,
+    OV5642_SIZE_1280X960,
+    OV5642_SIZE_1600X1200,
+    OV5642_SIZE_2048X1536,
+    OV5642_SIZE_2592X1944
+} ov5642_jpeg_size_t;
+
 int8_t ov5642_init(ov5642_t *dev, const ov5642_bus_t *bus);
 int8_t ov5642_read_reg(const ov5642_t *dev, uint16_t reg, uint8_t *val);
 int8_t ov5642_write_reg(const ov5642_t *dev, uint16_t reg, uint8_t val);
 int8_t ov5642_read_id(const ov5642_t *dev, ov5642_id_t *id);
 int8_t ov5642_check_id(const ov5642_t *dev, ov5642_id_t *id);
+int8_t ov5642_init_jpeg(const ov5642_t *dev, ov5642_jpeg_size_t size);
+int8_t ov5642_set_jpeg_size(const ov5642_t *dev, ov5642_jpeg_size_t size);
 
 #ifdef __cplusplus
 }

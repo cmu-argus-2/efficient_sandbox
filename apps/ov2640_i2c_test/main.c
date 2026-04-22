@@ -26,6 +26,12 @@ static int8_t e1x_ov5642_write_reg(void *ctx, uint16_t reg, uint8_t val)
     return eff_i2c_write_wide(ovctx->i2c, ovctx->addr, reg, &data, 1u);
 }
 
+static void e1x_ov5642_delay_ms(void *ctx, uint32_t ms)
+{
+    (void)ctx;
+    sleep_ms(ms);
+}
+
 static void dump_reg(ov5642_t *ov5642, uint16_t reg, const char *name)
 {
     uint8_t val = 0u;
@@ -46,6 +52,7 @@ static void probe_addr(eff_i2c_t *i2c, uint8_t addr)
 
     ov_bus.read_reg = e1x_ov5642_read_reg;
     ov_bus.write_reg = e1x_ov5642_write_reg;
+    ov_bus.delay_ms = e1x_ov5642_delay_ms;
     ov_bus.ctx = &ovctx;
 
     printf("\r\n--- Probing I2C addr 0x%02X ---\r\n", addr);
