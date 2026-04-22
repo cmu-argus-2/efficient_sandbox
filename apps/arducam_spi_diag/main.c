@@ -359,16 +359,6 @@ int main(void)
     read_rev = run_xfer("read revision reg (WRITE_READ)", CAM_SPI,
                         SPI_XFER_WRITE_READ, tx_rev_read, 1u, 1u);
 
-    if ((read_test.rc == 0) && (read_rev.rc == 0) &&
-        (read_test.rx[0] == 0u) && (read_rev.rx[0] == 0u)) {
-        printf("both controller-managed reads returned 0x00; trying direct-CS experiment\r\n");
-        uart_settle();
-        (void)run_direct_cs_read("read test reg (direct-CS experiment)",
-                                 CAM_SPI, tx_test_read, 1u, 1u);
-        (void)run_direct_cs_read("read revision reg (direct-CS experiment)",
-                                 CAM_SPI, tx_rev_read, 1u, 1u);
-    }
-
     print_separator("non-zero-length write workaround");
     (void)run_xfer("write test reg (WRITE_READ, dummy-rx)", CAM_SPI,
                    SPI_XFER_WRITE_READ, tx_test_write, 2u, 1u);
