@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "ArduCAM.h"
+#include "arducam_arch_raspberrypi.h"
 
 static void uart_settle(void)
 {

@@ -9,7 +9,6 @@ include_directories(
 
 add_compile_definitions(
     RASPBERRY_PI
-    OV5642_MINI_5MP_PLUS
 )
 
 add_eff_app(arducam_driver_port
