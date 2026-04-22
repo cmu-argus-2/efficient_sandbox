@@ -62,7 +62,7 @@ int main(void)
     eff_pinmux_set(CAM_SPI_PINMUX, PINMUX_SPI);
     eff_pinmux_set(CAM_I2C_PINMUX, PINMUX_I2C0_I2C1);
 
-    spi_cfg.xfer_mode = SPI_XFER_BIDIRECTIONAL;
+    spi_cfg.xfer_mode = SPI_XFER_WRITE_READ;
     spi_cfg.bus_size = SPI_BUS_SINGLE;
     spi_cfg.clk_div = 4;
 
