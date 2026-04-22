@@ -211,6 +211,94 @@ static spi_diag_result_t run_bidirectional_read(const char *label,
     return result;
 }
 
+static spi_diag_result_t run_manual_trace_read(const char *label,
+                                               eff_spi_t *spi,
+                                               uint8_t addr)
+{
+    spi_diag_result_t result = {
+        .rc = -127,
+        .rx = {0}
+    };
+    ATCSPI200_RegDef *regs = spi_regs(spi);
+    uint8_t tx_buf[1] = {addr};
+    uint32_t tx_sent = 0u;
+    uint32_t rx_received = 0u;
+    uint32_t loops = 0u;
+    uint32_t rx_fifo = 0u;
+
+    printf("%s\r\n", label);
+    uart_settle();
+    print_bytes("  tx=", tx_buf, 1u);
+
+    result.rc = spi_set_mode(spi, SPI_XFER_WRITE_READ, 16u);
+    printf("  eff_spi_init -> %d\r\n", result.rc);
+    uart_settle();
+    if (result.rc != 0) {
+        return result;
+    }
+
+    regs->CTRL |= (1u << ATCSPI200_CTRL_SPIRST_OFFSET);
+    regs->TRANSCTRL &= ~ATCSPI200_TRANSCTRL_WRTRANCNT_MASK;
+    regs->TRANSCTRL |= (ATCSPI200_TRANSCTRL_WRTRANCNT_MASK &
+                        ((1u - 1u) << ATCSPI200_TRANSCTRL_WRTRANCNT_OFFSET));
+    regs->TRANSCTRL &= ~ATCSPI200_TRANSCTRL_RDTRANCNT_MASK;
+    regs->TRANSCTRL |= (ATCSPI200_TRANSCTRL_RDTRANCNT_MASK &
+                        ((1u - 1u) << ATCSPI200_TRANSCTRL_RDTRANCNT_OFFSET));
+    regs->ADDR = 0u;
+    dump_spi_regs("  before manual CMD write", spi);
+    regs->CMD = 0u;
+    printf("  status after CMD=0 write: 0x%08X\r\n", regs->STATUS);
+    uart_settle();
+
+    while ((tx_sent < 1u || rx_received < 1u) && (loops < 1000000u)) {
+        ++loops;
+
+        while ((tx_sent < 1u) &&
+               !(regs->STATUS & ATCSPI200_STATUS_TXFULL_MASK)) {
+            regs->DATA = tx_buf[tx_sent];
+            printf("  wrote DATA[%u]=0x%02X status=0x%08X\r\n",
+                   (unsigned)tx_sent, tx_buf[tx_sent], regs->STATUS);
+            uart_settle();
+            ++tx_sent;
+        }
+
+        if ((rx_received < 1u) &&
+            !(regs->STATUS & ATCSPI200_STATUS_RXEMPTY_MASK)) {
+            rx_fifo =
+                (regs->STATUS & ATCSPI200_STATUS_RXNUM_LOWER_MASK) >>
+                ATCSPI200_STATUS_RXNUM_LOWER_OFFSET;
+            if (rx_fifo == 0u) {
+                rx_fifo = 1u;
+            }
+            printf("  rx available: fifo=%u status=0x%08X\r\n",
+                   (unsigned)rx_fifo, regs->STATUS);
+            uart_settle();
+            while ((rx_fifo != 0u) && (rx_received < 1u)) {
+                result.rx[rx_received] = (uint8_t)regs->DATA;
+                printf("  read DATA[%u]=0x%02X status=0x%08X\r\n",
+                       (unsigned)rx_received, result.rx[rx_received], regs->STATUS);
+                uart_settle();
+                ++rx_received;
+                --rx_fifo;
+            }
+        }
+    }
+
+    if ((tx_sent == 1u) && (rx_received == 1u)) {
+        result.rc = 0;
+    } else {
+        result.rc = -125;
+    }
+
+    printf("  manual trace loops=%u tx_sent=%u rx_received=%u rc=%d final_status=0x%08X\r\n",
+           (unsigned)loops, (unsigned)tx_sent, (unsigned)rx_received,
+           result.rc, regs->STATUS);
+    uart_settle();
+    print_bytes("  rx=", result.rx, rx_received);
+
+    return result;
+}
+
 static void print_separator(const char *label)
 {
     printf("\r\n--- %s ---\r\n", label);
@@ -229,6 +317,8 @@ int main(void)
     spi_diag_result_t dummy_read_rev;
     spi_diag_result_t bidi_read_test;
     spi_diag_result_t bidi_read_rev;
+    spi_diag_result_t manual_read_test;
+    spi_diag_result_t manual_read_rev;
     uint8_t tx_reset_assert[2] = {(uint8_t)(ARDUCHIP_RESET | 0x80u), 0x80u};
     uint8_t tx_reset_release[2] = {(uint8_t)(ARDUCHIP_RESET | 0x80u), 0x00u};
     uint8_t tx_test_write[2] = {(uint8_t)(ARDUCHIP_TEST1 | 0x80u), 0x55u};
@@ -293,13 +383,18 @@ int main(void)
                                             ARDUCHIP_TEST1);
     bidi_read_rev = run_bidirectional_read("read revision reg (BIDIRECTIONAL)", CAM_SPI,
                                            ARDUCHIP_REV);
+    manual_read_test = run_manual_trace_read("read test reg (manual trace)", CAM_SPI,
+                                             ARDUCHIP_TEST1);
+    manual_read_rev = run_manual_trace_read("read revision reg (manual trace)", CAM_SPI,
+                                            ARDUCHIP_REV);
 
-    printf("summary: base t=0x%02X r=0x%02X | safe t=0x%02X r=0x%02X | dummy t=0x%02X r=0x%02X | bidi t={0x%02X,0x%02X} r={0x%02X,0x%02X}\r\n",
+    printf("summary: base t=0x%02X r=0x%02X | safe t=0x%02X r=0x%02X | dummy t=0x%02X r=0x%02X | bidi t={0x%02X,0x%02X} r={0x%02X,0x%02X} | manual t=0x%02X r=0x%02X\r\n",
            read_test.rx[0], read_rev.rx[0],
            safe_read_test.rx[0], safe_read_rev.rx[0],
            dummy_read_test.rx[0], dummy_read_rev.rx[0],
            bidi_read_test.rx[0], bidi_read_test.rx[1],
-           bidi_read_rev.rx[0], bidi_read_rev.rx[1]);
+           bidi_read_rev.rx[0], bidi_read_rev.rx[1],
+           manual_read_test.rx[0], manual_read_rev.rx[0]);
     uart_settle();
 
     while (1) {
