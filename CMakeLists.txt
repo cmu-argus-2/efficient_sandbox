@@ -9,5 +9,6 @@ add_subdirectory(${EFF_SDK_ROOT_DIR} sdk)
 
 add_subdirectory(apps/spi_test)
 add_subdirectory(apps/arducam)
+add_subdirectory(apps/arducam_spi_diag)
 add_subdirectory(apps/arducam_spi_test)
 add_subdirectory(apps/ov2640_i2c_test)

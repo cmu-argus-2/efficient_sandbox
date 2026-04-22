@@ -19,17 +19,6 @@ static int8_t e1x_spi_transact(void *ctx,
                                uint32_t rx_len)
 {
     eff_spi_t *spi = (eff_spi_t *)ctx;
-    eff_spi_cfg_t cfg = spi->_cfg;
-
-    if (rx_len == 0u) {
-        cfg.xfer_mode = SPI_XFER_WRITE_ONLY;
-    } else if (tx_len == 0u) {
-        cfg.xfer_mode = SPI_XFER_READ_ONLY;
-    } else {
-        cfg.xfer_mode = SPI_XFER_WRITE_READ;
-    }
-
-    eff_spi_init(spi, &cfg);
     return eff_spi_xfer(spi, 0u, 0u, (uint8_t *)tx, tx_len, rx, rx_len);
 }
 
