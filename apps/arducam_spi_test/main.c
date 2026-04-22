@@ -7,6 +7,11 @@
 #define CAM_SPI_PINMUX PINMUX_2
 #define CAM_SPI        SPI_2
 
+static void uart_settle(void)
+{
+    sleep_ms(50);
+}
+
 static int8_t e1x_spi_transact(void *ctx,
                                const uint8_t *tx,
                                uint32_t tx_len,
@@ -28,7 +33,9 @@ int main(void)
 
     sleep_ms(1000);
     printf("\r\n=== APP: arducam_spi_test ===\r\n");
+    uart_settle();
     printf("ArduCAM 5MP Plus SPI test on SPI_2 / PINMUX_2\r\n");
+    uart_settle();
 
     eff_pinmux_set(CAM_SPI_PINMUX, PINMUX_SPI);
 
@@ -38,6 +45,7 @@ int main(void)
 
     rc = eff_spi_init(CAM_SPI, &spi_cfg);
     printf("eff_spi_init -> %d\r\n", rc);
+    uart_settle();
     if (rc != 0) {
         return -1;
     }
@@ -47,30 +55,37 @@ int main(void)
 
     rc = arducam_spi_init(&cam_spi, &bus);
     printf("arducam_spi_init -> %d\r\n", rc);
+    uart_settle();
     if (rc != ARDUCAM_SPI_OK) {
         return -1;
     }
 
     rc = arducam_spi_write_reg(&cam_spi, 0x00u, 0x55u);
     printf("arducam_spi_write_reg(0x00, 0x55) -> %d\r\n", rc);
+    uart_settle();
 
     rc = arducam_spi_read_reg(&cam_spi, 0x00u, &test_reg);
     printf("arducam_spi_read_reg(0x00) -> %d, val=0x%02X\r\n", rc, test_reg);
+    uart_settle();
 
     rc = arducam_spi_check_link(&cam_spi);
     printf("arducam_spi_check_link -> %d\r\n", rc);
+    uart_settle();
     if (rc != ARDUCAM_SPI_OK) {
         printf("SPI link check failed after raw test-reg probe\r\n");
+        uart_settle();
     }
 
     rc = arducam_spi_read_reg(&cam_spi, 0x40u, &version);
     printf("arducam_spi_read_reg(0x40) -> %d, val=0x%02X\r\n", rc, version);
+    uart_settle();
     if (rc != ARDUCAM_SPI_OK) {
         return -1;
     }
 
     rc = arducam_spi_reset_fifo(&cam_spi);
     printf("arducam_spi_reset_fifo -> %d\r\n", rc);
+    uart_settle();
 
     while (1) {
         sleep(1);
